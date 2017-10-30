@@ -1,0 +1,11 @@
+[Unit]
+Description=dnsmasq exporter for Prometheus
+Documentation=https://prometheus.io/docs/introduction/overview/
+
+[Service]
+Restart=always
+User=prometheus
+ExecStart=/usr/bin/dnsmasq_exporter
+
+[Install]
+WantedBy=multi-user.target
