@@ -39,6 +39,10 @@ var (
 	leasesPath = flag.String("leases_path",
 		"/var/lib/misc/dnsmasq.leases",
 		"path to the dnsmasq leases file")
+
+	dnsmasqAddr = flag.String("dnsmasq",
+		"localhost:53",
+		"dnsmasq host:port address")
 )
 
 var (
@@ -122,7 +126,7 @@ func main() {
 					dns.Question{"servers.bind.", dns.TypeTXT, dns.ClassCHAOS},
 				},
 			}
-			in, _, err := dnsClient.Exchange(msg, "127.0.0.1:53")
+			in, _, err := dnsClient.Exchange(msg, *dnsmasqAddr)
 			if err != nil {
 				return err
 			}
