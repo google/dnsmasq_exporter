@@ -109,7 +109,8 @@ func main() {
 		eg.Go(func() error {
 			msg := &dns.Msg{
 				MsgHdr: dns.MsgHdr{
-					Id: dns.Id(),
+					Id:               dns.Id(),
+					RecursionDesired: true,
 				},
 				Question: []dns.Question{
 					dns.Question{"cachesize.bind.", dns.TypeTXT, dns.ClassCHAOS},
