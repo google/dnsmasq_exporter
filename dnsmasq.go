@@ -101,85 +101,98 @@ func init() {
 // be:
 //     dig +short chaos txt cachesize.bind
 
+type server struct {
+	promHandler http.Handler
+	dnsClient   *dns.Client
+	dnsmasqAddr string
+	leasesPath  string
+}
+
+func (s *server) metrics(w http.ResponseWriter, r *http.Request) {
+	var eg errgroup.Group
+
+	eg.Go(func() error {
+		msg := &dns.Msg{
+			MsgHdr: dns.MsgHdr{
+				Id:               dns.Id(),
+				RecursionDesired: true,
+			},
+			Question: []dns.Question{
+				dns.Question{"cachesize.bind.", dns.TypeTXT, dns.ClassCHAOS},
+				dns.Question{"insertions.bind.", dns.TypeTXT, dns.ClassCHAOS},
+				dns.Question{"evictions.bind.", dns.TypeTXT, dns.ClassCHAOS},
+				dns.Question{"misses.bind.", dns.TypeTXT, dns.ClassCHAOS},
+				dns.Question{"hits.bind.", dns.TypeTXT, dns.ClassCHAOS},
+				dns.Question{"auth.bind.", dns.TypeTXT, dns.ClassCHAOS},
+				dns.Question{"servers.bind.", dns.TypeTXT, dns.ClassCHAOS},
+			},
+		}
+		in, _, err := s.dnsClient.Exchange(msg, s.dnsmasqAddr)
+		if err != nil {
+			return err
+		}
+		for _, a := range in.Answer {
+			txt, ok := a.(*dns.TXT)
+			if !ok {
+				continue
+			}
+			switch txt.Hdr.Name {
+			case "servers.bind.":
+				// TODO: parse <server> <successes> <errors>, also with multiple upstreams
+			default:
+				g, ok := floatMetrics[txt.Hdr.Name]
+				if !ok {
+					continue // ignore unexpected answer from dnsmasq
+				}
+				if got, want := len(txt.Txt), 1; got != want {
+					return fmt.Errorf("stats DNS record %q: unexpected number of replies: got %d, want %d", txt.Hdr.Name, got, want)
+				}
+				f, err := strconv.ParseFloat(txt.Txt[0], 64)
+				if err != nil {
+					return err
+				}
+				g.Set(f)
+			}
+		}
+		return nil
+	})
+
+	eg.Go(func() error {
+		f, err := os.Open(s.leasesPath)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		scanner := bufio.NewScanner(f)
+		var lines float64
+		for scanner.Scan() {
+			lines++
+		}
+		if err := scanner.Err(); err != nil {
+			return err
+		}
+		leases.Set(lines)
+		return nil
+	})
+
+	if err := eg.Wait(); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	s.promHandler.ServeHTTP(w, r)
+}
+
 func main() {
 	flag.Parse()
-	promHandler := promhttp.Handler()
-	dnsClient := &dns.Client{
-		SingleInflight: true,
+	s := &server{
+		promHandler: promhttp.Handler(),
+		dnsClient: &dns.Client{
+			SingleInflight: true,
+		},
+		dnsmasqAddr: *dnsmasqAddr,
+		leasesPath:  *leasesPath,
 	}
-	http.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
-		var eg errgroup.Group
-
-		eg.Go(func() error {
-			msg := &dns.Msg{
-				MsgHdr: dns.MsgHdr{
-					Id:               dns.Id(),
-					RecursionDesired: true,
-				},
-				Question: []dns.Question{
-					dns.Question{"cachesize.bind.", dns.TypeTXT, dns.ClassCHAOS},
-					dns.Question{"insertions.bind.", dns.TypeTXT, dns.ClassCHAOS},
-					dns.Question{"evictions.bind.", dns.TypeTXT, dns.ClassCHAOS},
-					dns.Question{"misses.bind.", dns.TypeTXT, dns.ClassCHAOS},
-					dns.Question{"hits.bind.", dns.TypeTXT, dns.ClassCHAOS},
-					dns.Question{"auth.bind.", dns.TypeTXT, dns.ClassCHAOS},
-					dns.Question{"servers.bind.", dns.TypeTXT, dns.ClassCHAOS},
-				},
-			}
-			in, _, err := dnsClient.Exchange(msg, *dnsmasqAddr)
-			if err != nil {
-				return err
-			}
-			for _, a := range in.Answer {
-				txt, ok := a.(*dns.TXT)
-				if !ok {
-					continue
-				}
-				switch txt.Hdr.Name {
-				case "servers.bind.":
-					// TODO: parse <server> <successes> <errors>, also with multiple upstreams
-				default:
-					g, ok := floatMetrics[txt.Hdr.Name]
-					if !ok {
-						continue // ignore unexpected answer from dnsmasq
-					}
-					if got, want := len(txt.Txt), 1; got != want {
-						return fmt.Errorf("stats DNS record %q: unexpected number of replies: got %d, want %d", txt.Hdr.Name, got, want)
-					}
-					f, err := strconv.ParseFloat(txt.Txt[0], 64)
-					if err != nil {
-						return err
-					}
-					g.Set(f)
-				}
-			}
-			return nil
-		})
-
-		eg.Go(func() error {
-			f, err := os.Open(*leasesPath)
-			if err != nil {
-				return err
-			}
-			defer f.Close()
-			scanner := bufio.NewScanner(f)
-			var lines float64
-			for scanner.Scan() {
-				lines++
-			}
-			if err := scanner.Err(); err != nil {
-				return err
-			}
-			leases.Set(lines)
-			return nil
-		})
-
-		if err := eg.Wait(); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		promHandler.ServeHTTP(w, r)
-	})
+	http.HandleFunc("/metrics", s.metrics)
 	log.Fatal(http.ListenAndServe(*listen, nil))
 }
