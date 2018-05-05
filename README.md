@@ -1,5 +1,7 @@
 # dnsmasq exporter
 
+[![Build Status](https://travis-ci.org/google/dnsmasq_exporter.svg?branch=master)](https://travis-ci.org/google/dnsmasq_exporter)
+
 dnsmasq_exporter is an exporter for [Prometheus](https://prometheus.io/),
 allowing you to monitor/alert on the number of DHCP leases and various DNS
 statistics.
