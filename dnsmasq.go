@@ -43,6 +43,9 @@ var (
 	dnsmasqAddr = flag.String("dnsmasq",
 		"localhost:53",
 		"dnsmasq host:port address")
+	metricsPath = flag.String("metrics_path",
+		"/metrics",
+		"path under which metrics are served")
 )
 
 var (
@@ -193,6 +196,14 @@ func main() {
 		dnsmasqAddr: *dnsmasqAddr,
 		leasesPath:  *leasesPath,
 	}
-	http.HandleFunc("/metrics", s.metrics)
+	http.HandleFunc(*metricsPath, s.metrics)
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`<html>
+			<head><title>Dnsmasq Exporter</title></head>
+			<body>
+			<h1>Dnsmasq Exporter</h1>
+			<p><a href="` + *metricsPath + `">Metrics</a></p>
+			</body></html>`))
+	})
 	log.Fatal(http.ListenAndServe(*listen, nil))
 }
