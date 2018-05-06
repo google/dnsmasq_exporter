@@ -19,7 +19,6 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -29,6 +28,7 @@ import (
 	"github.com/miekg/dns"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/prometheus/common/log"
 )
 
 var (
@@ -43,6 +43,9 @@ var (
 	dnsmasqAddr = flag.String("dnsmasq",
 		"localhost:53",
 		"dnsmasq host:port address")
+	metricsPath = flag.String("metrics_path",
+		"/metrics",
+		"path under which metrics are served")
 )
 
 var (
@@ -160,6 +163,7 @@ func (s *server) metrics(w http.ResponseWriter, r *http.Request) {
 	eg.Go(func() error {
 		f, err := os.Open(s.leasesPath)
 		if err != nil {
+			log.Warnln("could not open leases file:", err)
 			return err
 		}
 		defer f.Close()
@@ -193,6 +197,16 @@ func main() {
 		dnsmasqAddr: *dnsmasqAddr,
 		leasesPath:  *leasesPath,
 	}
-	http.HandleFunc("/metrics", s.metrics)
+	http.HandleFunc(*metricsPath, s.metrics)
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`<html>
+			<head><title>Dnsmasq Exporter</title></head>
+			<body>
+			<h1>Dnsmasq Exporter</h1>
+			<p><a href="` + *metricsPath + `">Metrics</a></p>
+			</body></html>`))
+	})
+	log.Infoln("Listening on", *listen)
+	log.Infoln("Serving metrics under", *metricsPath)
 	log.Fatal(http.ListenAndServe(*listen, nil))
 }
