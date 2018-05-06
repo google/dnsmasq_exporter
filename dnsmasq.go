@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 
 	"golang.org/x/sync/errgroup"
 
@@ -81,6 +82,11 @@ var (
 			Name: "dnsmasq_auth",
 			Help: "DNS queries for authoritative zones",
 		}),
+
+		"version.bind.": prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "dnsmasq_version",
+			Help: "running version of dnsmasq",
+		}),
 	}
 
 	leases = prometheus.NewGauge(prometheus.GaugeOpts{
@@ -128,6 +134,7 @@ func (s *server) metrics(w http.ResponseWriter, r *http.Request) {
 				dns.Question{"hits.bind.", dns.TypeTXT, dns.ClassCHAOS},
 				dns.Question{"auth.bind.", dns.TypeTXT, dns.ClassCHAOS},
 				dns.Question{"servers.bind.", dns.TypeTXT, dns.ClassCHAOS},
+				dns.Question{"version.bind.", dns.TypeTXT, dns.ClassCHAOS},
 			},
 		}
 		in, _, err := s.dnsClient.Exchange(msg, s.dnsmasqAddr)
@@ -150,7 +157,13 @@ func (s *server) metrics(w http.ResponseWriter, r *http.Request) {
 				if got, want := len(txt.Txt), 1; got != want {
 					return fmt.Errorf("stats DNS record %q: unexpected number of replies: got %d, want %d", txt.Hdr.Name, got, want)
 				}
-				f, err := strconv.ParseFloat(txt.Txt[0], 64)
+				var metricValue string
+				if txt.Hdr.Name == "version.bind." && strings.HasPrefix(txt.Txt[0], "dnsmasq-") {
+					metricValue = strings.TrimPrefix(txt.Txt[0], "dnsmasq-")
+				} else {
+					metricValue = txt.Txt[0]
+				}
+				f, err := strconv.ParseFloat(metricValue, 64)
 				if err != nil {
 					return err
 				}
@@ -163,7 +176,6 @@ func (s *server) metrics(w http.ResponseWriter, r *http.Request) {
 	eg.Go(func() error {
 		f, err := os.Open(s.leasesPath)
 		if err != nil {
-			log.Warnln("could not open leases file:", err)
 			return err
 		}
 		defer f.Close()
@@ -181,6 +193,7 @@ func (s *server) metrics(w http.ResponseWriter, r *http.Request) {
 
 	if err := eg.Wait(); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		log.Warnln("unexpected error:", err)
 		return
 	}
 
