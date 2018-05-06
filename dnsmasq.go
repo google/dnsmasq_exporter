@@ -19,7 +19,6 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -29,6 +28,7 @@ import (
 	"github.com/miekg/dns"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/prometheus/common/log"
 )
 
 var (
@@ -163,6 +163,7 @@ func (s *server) metrics(w http.ResponseWriter, r *http.Request) {
 	eg.Go(func() error {
 		f, err := os.Open(s.leasesPath)
 		if err != nil {
+			log.Warnln("could not open leases file:", err)
 			return err
 		}
 		defer f.Close()
@@ -205,5 +206,7 @@ func main() {
 			<p><a href="` + *metricsPath + `">Metrics</a></p>
 			</body></html>`))
 	})
+	log.Infoln("Listening on", *listen)
+	log.Infoln("Serving metrics under", *metricsPath)
 	log.Fatal(http.ListenAndServe(*listen, nil))
 }
