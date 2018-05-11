@@ -161,22 +161,27 @@ func (s *server) metrics(w http.ResponseWriter, r *http.Request) {
 	})
 
 	eg.Go(func() error {
-		f, err := os.Open(s.leasesPath)
-		if err != nil {
-			log.Warnln("could not open leases file:", err)
-			return err
+		if _, err := os.Stat(s.leasesPath); err == nil {
+			f, err := os.Open(s.leasesPath)
+			if err != nil {
+				log.Warnln("could not open leases file:", err)
+				return err
+			}
+			defer f.Close()
+			scanner := bufio.NewScanner(f)
+			var lines float64
+			for scanner.Scan() {
+				lines++
+			}
+			if err := scanner.Err(); err != nil {
+				return err
+			}
+			leases.Set(lines)
+			return nil
+		} else {
+			log.Warnln("did not find open leases file, skipped")
+			return nil
 		}
-		defer f.Close()
-		scanner := bufio.NewScanner(f)
-		var lines float64
-		for scanner.Scan() {
-			lines++
-		}
-		if err := scanner.Err(); err != nil {
-			return err
-		}
-		leases.Set(lines)
-		return nil
 	})
 
 	if err := eg.Wait(); err != nil {
