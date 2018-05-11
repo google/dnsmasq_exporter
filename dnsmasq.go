@@ -179,7 +179,7 @@ func (s *server) metrics(w http.ResponseWriter, r *http.Request) {
 			leases.Set(lines)
 			return nil
 		} else {
-			log.Warnln("did not find open leases file, skipped")
+			log.Warnln("did not find leases file, skipped")
 			return nil
 		}
 	})
