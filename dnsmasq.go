@@ -161,7 +161,11 @@ func (s *server) metrics(w http.ResponseWriter, r *http.Request) {
 	})
 
 	eg.Go(func() error {
-		if _, err := os.Stat(s.leasesPath); err == nil {
+		if _, err := os.Stat(s.leasesPath); err != nil {
+			log.Warnln("did not find leases file, skipped")
+			return nil
+
+		} else {
 			f, err := os.Open(s.leasesPath)
 			if err != nil {
 				log.Warnln("could not open leases file:", err)
@@ -177,9 +181,6 @@ func (s *server) metrics(w http.ResponseWriter, r *http.Request) {
 				return err
 			}
 			leases.Set(lines)
-			return nil
-		} else {
-			log.Warnln("did not find leases file, skipped")
 			return nil
 		}
 	})
