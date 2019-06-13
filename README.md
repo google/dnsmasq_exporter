@@ -31,6 +31,12 @@ systemctl daemon-reload
 systemctl enable --now dnsmasq_exporter
 ```
 
+### Alternative usage
+```shell
+docker build -t dnsmasq_exporter .
+docker run --restart=unless-stopped --net=host dnsmasq_exporter
+```
+
 Then, add the endpoint to your Prometheus configuration file:
 
 ```yaml
