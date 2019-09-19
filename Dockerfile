@@ -9,4 +9,5 @@ RUN go build -o dnsmasq_exporter
 FROM scratch
 WORKDIR /app
 COPY --from=build-env /src/dnsmasq_exporter /app/
+USER 65534
 ENTRYPOINT ["/app/dnsmasq_exporter"]
