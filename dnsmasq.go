@@ -111,6 +111,14 @@ type server struct {
 	leasesPath  string
 }
 
+func question(name string) dns.Question {
+	return dns.Question{
+		Name:   name,
+		Qtype:  dns.TypeTXT,
+		Qclass: dns.ClassCHAOS,
+	}
+}
+
 func (s *server) metrics(w http.ResponseWriter, r *http.Request) {
 	var eg errgroup.Group
 
@@ -121,13 +129,13 @@ func (s *server) metrics(w http.ResponseWriter, r *http.Request) {
 				RecursionDesired: true,
 			},
 			Question: []dns.Question{
-				dns.Question{"cachesize.bind.", dns.TypeTXT, dns.ClassCHAOS},
-				dns.Question{"insertions.bind.", dns.TypeTXT, dns.ClassCHAOS},
-				dns.Question{"evictions.bind.", dns.TypeTXT, dns.ClassCHAOS},
-				dns.Question{"misses.bind.", dns.TypeTXT, dns.ClassCHAOS},
-				dns.Question{"hits.bind.", dns.TypeTXT, dns.ClassCHAOS},
-				dns.Question{"auth.bind.", dns.TypeTXT, dns.ClassCHAOS},
-				dns.Question{"servers.bind.", dns.TypeTXT, dns.ClassCHAOS},
+				question("cachesize.bind."),
+				question("insertions.bind."),
+				question("evictions.bind."),
+				question("misses.bind."),
+				question("hits.bind."),
+				question("auth.bind."),
+				question("servers.bind."),
 			},
 		}
 		in, _, err := s.dnsClient.Exchange(msg, s.dnsmasqAddr)
