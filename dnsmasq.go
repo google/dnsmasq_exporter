@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 
 	"golang.org/x/sync/errgroup"
 
@@ -83,6 +84,23 @@ var (
 		}),
 	}
 
+	serversMetrics = map[string]*prometheus.GaugeVec{
+		"queries": prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "dnsmasq_servers_queries",
+				Help: "DNS queries on upstream server",
+			},
+			[]string{"server"},
+		),
+		"queries_failed": prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "dnsmasq_servers_queries_failed",
+				Help: "DNS queries failed on upstream server",
+			},
+			[]string{"server"},
+		),
+	}
+
 	leases = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "dnsmasq_leases",
 		Help: "Number of DHCP leases handed out",
@@ -91,6 +109,9 @@ var (
 
 func init() {
 	for _, g := range floatMetrics {
+		prometheus.MustRegister(g)
+	}
+	for _, g := range serversMetrics {
 		prometheus.MustRegister(g)
 	}
 	prometheus.MustRegister(leases)
@@ -149,7 +170,22 @@ func (s *server) metrics(w http.ResponseWriter, r *http.Request) {
 			}
 			switch txt.Hdr.Name {
 			case "servers.bind.":
-				// TODO: parse <server> <successes> <errors>, also with multiple upstreams
+				for _, str := range txt.Txt {
+					arr := strings.Fields(str)
+					if got, want := len(arr), 3; got != want {
+						return fmt.Errorf("stats DNS record servers.bind.: unexpeced number of argument in record: got %d, want %d", got, want)
+					}
+					queries, err := strconv.ParseFloat(arr[1], 64)
+					if err != nil {
+						return err
+					}
+					failedQueries, err := strconv.ParseFloat(arr[2], 64)
+					if err != nil {
+						return err
+					}
+					serversMetrics["queries"].WithLabelValues(arr[0]).Set(queries)
+					serversMetrics["queries_failed"].WithLabelValues(arr[0]).Set(failedQueries)
+				}
 			default:
 				g, ok := floatMetrics[txt.Hdr.Name]
 				if !ok {
