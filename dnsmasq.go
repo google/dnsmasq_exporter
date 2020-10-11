@@ -30,6 +30,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/log"
+	"github.com/prometheus/common/version"
 )
 
 var (
@@ -115,6 +116,7 @@ func init() {
 		prometheus.MustRegister(g)
 	}
 	prometheus.MustRegister(leases)
+	prometheus.MustRegister(version.NewCollector("dnsmasq_exporter"))
 }
 
 // From https://manpages.debian.org/stretch/dnsmasq-base/dnsmasq.8.en.html:
