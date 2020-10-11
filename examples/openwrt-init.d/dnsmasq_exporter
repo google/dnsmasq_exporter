@@ -4,10 +4,13 @@ START=99
 
 USE_PROCD=1
 PROG="/usr/bin/dnsmasq_exporter"
-OPTIONS="-leases_path=/tmp/dchp.leases"
+LEASES_PATH="/tmp/dhcp.leases"
+LISTEN_ADDR=":9153"
 
 start_service() {
 	procd_open_instance
-	procd_set_param command "$PROG" "${OPTIONS}"
+	procd_set_param command "$PROG" "-leases_path=${LEASES_PATH}" "-listen=${LISTEN_ADDR}"
+	procd_set_param stdout 1 # forward stdout of the command to logd
+	procd_set_param stderr 1 # same for stderr
 	procd_close_instance
 }
