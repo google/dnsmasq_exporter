@@ -1,4 +1,4 @@
-module github.com/prometheus/mysqld_exporter/mysqld-mixin
+module github.com/google/dnsmasq_exporter/dnsmasq-mixin
 
 go 1.14
 
