@@ -61,7 +61,7 @@ func TestDnsmasqExporter(t *testing.T) {
 		time.Sleep(10 * time.Millisecond) // do not hog the CPU
 	}
 
-	c := NewCollector(
+	c := New(
 		&dns.Client{
 			SingleInflight: true,
 		},
