@@ -1,4 +1,4 @@
-package main
+package collector
 
 import (
 	"fmt"
@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/miekg/dns"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
@@ -60,17 +61,16 @@ func TestDnsmasqExporter(t *testing.T) {
 		time.Sleep(10 * time.Millisecond) // do not hog the CPU
 	}
 
-	s := &server{
-		promHandler: promhttp.Handler(),
-		dnsClient: &dns.Client{
+	c := NewCollector(
+		&dns.Client{
 			SingleInflight: true,
 		},
-		dnsmasqAddr: "localhost:" + port,
-		leasesPath:  "testdata/dnsmasq.leases",
-	}
+		"localhost:"+port,
+		"testdata/dnsmasq.leases",
+	)
 
 	t.Run("first", func(t *testing.T) {
-		metrics := fetchMetrics(t, s)
+		metrics := fetchMetrics(t, c)
 		want := map[string]string{
 			"dnsmasq_leases":    "2",
 			"dnsmasq_cachesize": "666",
@@ -85,7 +85,7 @@ func TestDnsmasqExporter(t *testing.T) {
 	})
 
 	t.Run("second", func(t *testing.T) {
-		metrics := fetchMetrics(t, s)
+		metrics := fetchMetrics(t, c)
 		want := map[string]string{
 			"dnsmasq_leases":    "2",
 			"dnsmasq_cachesize": "666",
@@ -107,7 +107,7 @@ func TestDnsmasqExporter(t *testing.T) {
 	}
 
 	t.Run("after query", func(t *testing.T) {
-		metrics := fetchMetrics(t, s)
+		metrics := fetchMetrics(t, c)
 		want := map[string]string{
 			"dnsmasq_leases":    "2",
 			"dnsmasq_cachesize": "666",
@@ -122,9 +122,13 @@ func TestDnsmasqExporter(t *testing.T) {
 	})
 }
 
-func fetchMetrics(t *testing.T, s *server) map[string]string {
+func fetchMetrics(t *testing.T, c *Collector) map[string]string {
+	reg := prometheus.NewRegistry()
+	reg.MustRegister(c)
+	handler := promhttp.HandlerFor(reg, promhttp.HandlerOpts{})
+
 	rec := httptest.NewRecorder()
-	s.metrics(rec, httptest.NewRequest("GET", "/metrics", nil))
+	handler.ServeHTTP(rec, httptest.NewRequest("GET", "/metrics", nil))
 	resp := rec.Result()
 	if got, want := resp.StatusCode, http.StatusOK; got != want {
 		b, _ := ioutil.ReadAll(resp.Body)
