@@ -268,7 +268,7 @@
       ],
       "timeFrom": null,
       "timeShift": null,
-      "title": "",
+      "title": "Build Info",
       "transformations": [
         {
           "id": "labelsToFields",
@@ -453,63 +453,6 @@
         "h": 6,
         "w": 6,
         "x": 12,
-        "y": 15
-      },
-      "id": 9,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "mean"
-          ],
-          "fields": "",
-          "values": false
-        }
-      },
-      "pluginVersion": "7.0.4",
-      "targets": [
-        {
-          "expr": "sum(dnsmasq_hits{job=~\"$job\", instance=~\"$instance\"})",
-          "instant": false,
-          "interval": "",
-          "legendFormat": "",
-          "refId": "A"
-        }
-      ],
-      "timeFrom": null,
-      "timeShift": null,
-      "title": "Cache Hits",
-      "type": "stat"
-    },
-    {
-      "datasource": "$datasource",
-      "fieldConfig": {
-        "defaults": {
-          "custom": {},
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 6,
-        "w": 6,
-        "x": 18,
         "y": 15
       },
       "id": 7,
