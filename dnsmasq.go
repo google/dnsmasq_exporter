@@ -48,6 +48,9 @@ var (
 	metricsPath = flag.String("metrics_path",
 		"/metrics",
 		"path under which metrics are served")
+	disableLeaseMetrics = flag.Bool("disable_lease_metrics",
+		false,
+		"disable scraping of dhcp leases")
 )
 
 var (
@@ -108,14 +111,17 @@ var (
 	})
 )
 
-func init() {
+func initMetrics() {
 	for _, g := range floatMetrics {
 		prometheus.MustRegister(g)
 	}
 	for _, g := range serversMetrics {
 		prometheus.MustRegister(g)
 	}
-	prometheus.MustRegister(leases)
+	if !*disableLeaseMetrics {
+
+		prometheus.MustRegister(leases)
+	}
 	prometheus.MustRegister(version.NewCollector("dnsmasq_exporter"))
 }
 
@@ -128,10 +134,11 @@ func init() {
 //     dig +short chaos txt cachesize.bind
 
 type server struct {
-	promHandler http.Handler
-	dnsClient   *dns.Client
-	dnsmasqAddr string
-	leasesPath  string
+	promHandler         http.Handler
+	dnsClient           *dns.Client
+	dnsmasqAddr         string
+	leasesPath          string
+	disableLeaseMetrics bool
 }
 
 func question(name string) dns.Question {
@@ -144,7 +151,6 @@ func question(name string) dns.Question {
 
 func (s *server) metrics(w http.ResponseWriter, r *http.Request) {
 	var eg errgroup.Group
-
 	eg.Go(func() error {
 		msg := &dns.Msg{
 			MsgHdr: dns.MsgHdr{
@@ -205,25 +211,27 @@ func (s *server) metrics(w http.ResponseWriter, r *http.Request) {
 		}
 		return nil
 	})
+	if !*disableLeaseMetrics {
+		eg.Go(func() error {
+			f, err := os.Open(s.leasesPath)
+			if err != nil {
+				log.Warnln("could not open leases file:", err)
+				return err
+			}
+			defer f.Close()
+			scanner := bufio.NewScanner(f)
+			var lines float64
+			for scanner.Scan() {
+				lines++
+			}
+			if err := scanner.Err(); err != nil {
+				return err
+			}
+			leases.Set(lines)
+			return nil
+		})
 
-	eg.Go(func() error {
-		f, err := os.Open(s.leasesPath)
-		if err != nil {
-			log.Warnln("could not open leases file:", err)
-			return err
-		}
-		defer f.Close()
-		scanner := bufio.NewScanner(f)
-		var lines float64
-		for scanner.Scan() {
-			lines++
-		}
-		if err := scanner.Err(); err != nil {
-			return err
-		}
-		leases.Set(lines)
-		return nil
-	})
+	}
 
 	if err := eg.Wait(); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -235,13 +243,15 @@ func (s *server) metrics(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	flag.Parse()
+	initMetrics()
 	s := &server{
 		promHandler: promhttp.Handler(),
 		dnsClient: &dns.Client{
 			SingleInflight: true,
 		},
-		dnsmasqAddr: *dnsmasqAddr,
-		leasesPath:  *leasesPath,
+		dnsmasqAddr:         *dnsmasqAddr,
+		leasesPath:          *leasesPath,
+		disableLeaseMetrics: *disableLeaseMetrics,
 	}
 	http.HandleFunc(*metricsPath, s.metrics)
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {

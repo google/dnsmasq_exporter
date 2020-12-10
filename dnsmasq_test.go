@@ -65,8 +65,9 @@ func TestDnsmasqExporter(t *testing.T) {
 		dnsClient: &dns.Client{
 			SingleInflight: true,
 		},
-		dnsmasqAddr: "localhost:" + port,
-		leasesPath:  "testdata/dnsmasq.leases",
+		dnsmasqAddr:         "localhost:" + port,
+		leasesPath:          "testdata/dnsmasq.leases",
+		disableLeaseMetrics: false,
 	}
 
 	t.Run("first", func(t *testing.T) {
