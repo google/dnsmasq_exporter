@@ -102,6 +102,16 @@ var (
 		),
 	}
 
+	leaseMetrics = map[string]*prometheus.GaugeVec{
+		"expires": prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "dnsmasq_lease_expires",
+				Help: "DNS lease expires",
+			},
+			[]string{"macAddress", "ipAddress", "hostName"},
+		),
+	}
+
 	leases = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "dnsmasq_leases",
 		Help: "Number of DHCP leases handed out",
@@ -113,6 +123,9 @@ func init() {
 		prometheus.MustRegister(g)
 	}
 	for _, g := range serversMetrics {
+		prometheus.MustRegister(g)
+	}
+	for _, g := range leaseMetrics {
 		prometheus.MustRegister(g)
 	}
 	prometheus.MustRegister(leases)
@@ -216,6 +229,15 @@ func (s *server) metrics(w http.ResponseWriter, r *http.Request) {
 		scanner := bufio.NewScanner(f)
 		var lines float64
 		for scanner.Scan() {
+			arr := strings.Fields(scanner.Text())
+			if got, want := len(arr), 5; got != want {
+				return fmt.Errorf("dns lease entry: unexpeced number of argument in record: got %d, want %d", got, want)
+			}
+			expires, err := strconv.ParseFloat(arr[0], 64)
+			if err != nil {
+				return err
+			}
+			leaseMetrics["expires"].WithLabelValues(arr[1], arr[2], arr[3]).Set(expires)
 			lines++
 		}
 		if err := scanner.Err(); err != nil {
