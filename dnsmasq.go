@@ -209,6 +209,11 @@ func (s *server) metrics(w http.ResponseWriter, r *http.Request) {
 	eg.Go(func() error {
 		f, err := os.Open(s.leasesPath)
 		if err != nil {
+			if os.IsNotExist(err) {
+				// ignore
+				leases.Set(0)
+				return nil
+			}
 			log.Warnln("could not open leases file:", err)
 			return err
 		}
