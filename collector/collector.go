@@ -8,9 +8,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 	"github.com/miekg/dns"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/common/log"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -85,13 +86,14 @@ var (
 
 // Collector implements prometheus.Collector and exposes dnsmasq metrics.
 type Collector struct {
+	log         log.Logger
 	dnsClient   *dns.Client
 	dnsmasqAddr string
 	leasesPath  string
 }
 
 // New creates a new Collector.
-func New(client *dns.Client, dnsmasqAddr string, leasesPath string) *Collector {
+func New(l log.Logger, client *dns.Client, dnsmasqAddr string, leasesPath string) *Collector {
 	return &Collector{
 		dnsClient:   client,
 		dnsmasqAddr: dnsmasqAddr,
@@ -176,7 +178,7 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 	eg.Go(func() error {
 		f, err := os.Open(c.leasesPath)
 		if err != nil {
-			log.Warnln("could not open leases file:", err)
+			level.Warn(c.log).Log("msg", "could not open leases file", "err", err)
 			return err
 		}
 		defer f.Close()
@@ -193,7 +195,7 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 	})
 
 	if err := eg.Wait(); err != nil {
-		log.Warnln("could not complete scrape:", err)
+		level.Warn(c.log).Log("msg", "could not complete scrape", "err", err)
 	}
 }
 
