@@ -19,6 +19,7 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -26,13 +27,9 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	"github.com/miekg/dns"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/prometheus/common/promlog"
-	promlog_flag "github.com/prometheus/common/promlog/flag"
 	"github.com/prometheus/common/version"
 )
 
@@ -51,9 +48,6 @@ var (
 	metricsPath = flag.String("metrics_path",
 		"/metrics",
 		"path under which metrics are served")
-
-	logLevel  = &promlog.AllowedLevel{}
-	logFormat = &promlog.AllowedFormat{}
 )
 
 var (
@@ -115,12 +109,6 @@ var (
 )
 
 func init() {
-	logLevel.Set("info")
-	logFormat.Set("logformat")
-
-	flag.Var(logLevel, promlog_flag.LevelFlagName, promlog_flag.LevelFlagHelp)
-	flag.Var(logFormat, promlog_flag.FormatFlagName, promlog_flag.FormatFlagHelp)
-
 	for _, g := range floatMetrics {
 		prometheus.MustRegister(g)
 	}
@@ -140,7 +128,6 @@ func init() {
 //     dig +short chaos txt cachesize.bind
 
 type server struct {
-	log         log.Logger
 	promHandler http.Handler
 	dnsClient   *dns.Client
 	dnsmasqAddr string
@@ -227,7 +214,7 @@ func (s *server) metrics(w http.ResponseWriter, r *http.Request) {
 				leases.Set(0)
 				return nil
 			}
-			level.Warn(s.log).Log("msg", "could not open leases file", "err", err)
+			log.Println("warn: could not open leases file:", err)
 			return err
 		}
 		defer f.Close()
@@ -252,11 +239,6 @@ func (s *server) metrics(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	l := promlog.New(&promlog.Config{
-		Level:  logLevel,
-		Format: logFormat,
-	})
-
 	flag.Parse()
 	s := &server{
 		promHandler: promhttp.Handler(),
@@ -275,9 +257,8 @@ func main() {
       <p><a href="` + *metricsPath + `">Metrics</a></p>
       </body></html>`))
 	})
-	level.Info(l).Log("msg", "server listening", "address", *listen, "metrics_path", *metricsPath)
-	if err := http.ListenAndServe(*listen, nil); err != nil {
-		level.Error(l).Log("msg", "http listener exited with error", "err", err)
-		os.Exit(1)
-	}
+
+	log.Println("Listening on", *listen)
+	log.Println("Service metrics under", *metricsPath)
+	log.Fatal(http.ListenAndServe(*listen, nil))
 }
