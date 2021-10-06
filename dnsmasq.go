@@ -19,6 +19,7 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -29,7 +30,6 @@ import (
 	"github.com/miekg/dns"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/version"
 )
 
@@ -214,7 +214,7 @@ func (s *server) metrics(w http.ResponseWriter, r *http.Request) {
 				leases.Set(0)
 				return nil
 			}
-			log.Warnln("could not open leases file:", err)
+			log.Println("warn: could not open leases file:", err)
 			return err
 		}
 		defer f.Close()
@@ -251,13 +251,14 @@ func main() {
 	http.HandleFunc(*metricsPath, s.metrics)
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`<html>
-			<head><title>Dnsmasq Exporter</title></head>
-			<body>
-			<h1>Dnsmasq Exporter</h1>
-			<p><a href="` + *metricsPath + `">Metrics</a></p>
-			</body></html>`))
+      <head><title>Dnsmasq Exporter</title></head>
+      <body>
+      <h1>Dnsmasq Exporter</h1>
+      <p><a href="` + *metricsPath + `">Metrics</a></p>
+      </body></html>`))
 	})
-	log.Infoln("Listening on", *listen)
-	log.Infoln("Serving metrics under", *metricsPath)
+
+	log.Println("Listening on", *listen)
+	log.Println("Service metrics under", *metricsPath)
 	log.Fatal(http.ListenAndServe(*listen, nil))
 }
