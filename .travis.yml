@@ -7,7 +7,7 @@ services:
 
 language: go
 go:
-  - "1.13"
+  - "1.17"
 go_import_path: github.com/stapelberg/dnsmasq_exporter
 
 
