@@ -94,7 +94,12 @@ type Collector struct {
 
 // New creates a new Collector.
 func New(l log.Logger, client *dns.Client, dnsmasqAddr string, leasesPath string) *Collector {
+	if l == nil {
+		l = log.NewNopLogger()
+	}
+
 	return &Collector{
+		log:         l,
 		dnsClient:   client,
 		dnsmasqAddr: dnsmasqAddr,
 		leasesPath:  leasesPath,
