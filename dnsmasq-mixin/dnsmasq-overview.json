@@ -222,7 +222,7 @@
       "type": "row"
     },
     {
-      "datasource": "prometheus",
+      "datasource": "$datasource",
       "fieldConfig": {
         "defaults": {
           "custom": {
@@ -510,7 +510,7 @@
         "type": "datasource"
       },
       {
-        "allValue": null,
+        "allValue": ".+",
         "current": {
           "selected": true,
           "text": "dnsmasq",
@@ -522,7 +522,7 @@
         "definition": "label_values(dnsmasq_exporter_build_info, job)",
         "hide": 0,
         "includeAll": true,
-        "label": null,
+        "label": "job",
         "multi": true,
         "name": "job",
         "options": [
@@ -549,7 +549,7 @@
         "useTags": false
       },
       {
-        "allValue": null,
+        "allValue": ".+",
         "current": {
           "selected": true,
           "text": "router.lan",
@@ -561,7 +561,7 @@
         "definition": "label_values(dnsmasq_exporter_build_info, instance)",
         "hide": 0,
         "includeAll": true,
-        "label": null,
+        "label": "instance",
         "multi": true,
         "name": "instance",
         "options": [
