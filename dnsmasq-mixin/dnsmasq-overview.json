@@ -573,8 +573,8 @@
       {
         "current": {
           "selected": false,
-          "text": "grafanacloud-emilyrager-prom",
-          "value": "grafanacloud-emilyrager-prom"
+          "text": "default",
+          "value": "default"
         },
         "hide": 0,
         "includeAll": false,
@@ -606,10 +606,7 @@
         "multi": true,
         "name": "job",
         "options": [],
-        "query": {
-          "query": "label_values(dnsmasq_exporter_build_info, job)",
-          "refId": "grafanacloud-emilyrager-prom-job-Variable-Query"
-        },
+        "query": "label_values(dnsmasq_exporter_build_info, job)",
         "refresh": 1,
         "regex": "",
         "skipUrlSync": false,
@@ -636,10 +633,7 @@
         "multi": true,
         "name": "instance",
         "options": [],
-        "query": {
-          "query": "label_values(dnsmasq_exporter_build_info, instance)",
-          "refId": "grafanacloud-emilyrager-prom-instance-Variable-Query"
-        },
+        "query": "label_values(dnsmasq_exporter_build_info, instance)",
         "refresh": 1,
         "regex": "",
         "skipUrlSync": false,
