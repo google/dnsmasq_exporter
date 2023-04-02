@@ -65,8 +65,9 @@ func TestDnsmasqExporter(t *testing.T) {
 		dnsClient: &dns.Client{
 			SingleInflight: true,
 		},
-		dnsmasqAddr: "localhost:" + port,
-		leasesPath:  "testdata/dnsmasq.leases",
+		dnsmasqAddr:  "localhost:" + port,
+		leasesPath:   "testdata/dnsmasq.leases",
+		exposeLeases: false,
 	}
 
 	t.Run("first", func(t *testing.T) {
@@ -121,6 +122,34 @@ func TestDnsmasqExporter(t *testing.T) {
 		}
 	})
 
+	t.Run("should not expose lease information when disabled", func(t *testing.T) {
+		metrics := fetchMetrics(t, s)
+		for key, _ := range metrics {
+			if strings.Contains(key, "dnsmasq_lease_expiry") {
+				t.Errorf("lease information should not be exposed when disabled: %v", key)
+			}
+		}
+	})
+
+	s.exposeLeases = true
+
+	t.Run("with high-cardinality lease metrics enabled", func(t *testing.T) {
+		metrics := fetchMetrics(t, s)
+		want := map[string]string{
+			"dnsmasq_leases":    "2",
+			"dnsmasq_cachesize": "666",
+			"dnsmasq_hits":      "5",
+			"dnsmasq_misses":    "1",
+			"dnsmasq_lease_expiry{client_id=\"00:00:00:00:00:00\",computer_name=\"host-1\",ip_addr=\"10.10.10.10\",mac_addr=\"00:00:00:00:00:00\"}": "1.625595932e+09",
+			"dnsmasq_lease_expiry{client_id=\"00:00:00:00:00:01\",computer_name=\"host-2\",ip_addr=\"10.10.10.11\",mac_addr=\"00:00:00:00:00:01\"}": "0",
+		}
+		for key, val := range want {
+			if got, want := metrics[key], val; got != want {
+				t.Errorf("metric %q: got %q, want %q", key, got, want)
+			}
+		}
+	})
+
 	s.leasesPath = "testdata/dnsmasq.leases.does.not.exists"
 
 	t.Run("without leases file", func(t *testing.T) {
@@ -128,7 +157,7 @@ func TestDnsmasqExporter(t *testing.T) {
 		want := map[string]string{
 			"dnsmasq_leases":    "0",
 			"dnsmasq_cachesize": "666",
-			"dnsmasq_hits":      "4",
+			"dnsmasq_hits":      "6",
 			"dnsmasq_misses":    "1",
 		}
 		for key, val := range want {

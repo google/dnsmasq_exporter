@@ -38,6 +38,9 @@ var (
 		"localhost:9153",
 		"listen address")
 
+	exposeLeases = flag.Bool("expose_leases",
+		false,
+		"expose dnsmasq leases as metrics (high cardinality)")
 	leasesPath = flag.String("leases_path",
 		"/var/lib/misc/dnsmasq.leases",
 		"path to the dnsmasq leases file")
@@ -102,6 +105,16 @@ var (
 		),
 	}
 
+	// individual lease metrics have high cardinality and are thus disabled by
+	// default, unless enabled with the -expose_leases flag
+	leaseMetrics = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "dnsmasq_lease_expiry",
+			Help: "Expiry time for active DHCP leases",
+		},
+		[]string{"mac_addr", "ip_addr", "computer_name", "client_id"},
+	)
+
 	leases = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "dnsmasq_leases",
 		Help: "Number of DHCP leases handed out",
@@ -116,6 +129,7 @@ func init() {
 		prometheus.MustRegister(g)
 	}
 	prometheus.MustRegister(leases)
+	prometheus.MustRegister(leaseMetrics)
 	prometheus.MustRegister(version.NewCollector("dnsmasq_exporter"))
 }
 
@@ -128,10 +142,19 @@ func init() {
 //     dig +short chaos txt cachesize.bind
 
 type server struct {
-	promHandler http.Handler
-	dnsClient   *dns.Client
-	dnsmasqAddr string
-	leasesPath  string
+	promHandler  http.Handler
+	dnsClient    *dns.Client
+	dnsmasqAddr  string
+	leasesPath   string
+	exposeLeases bool
+}
+
+type lease struct {
+	expiry       uint64
+	macAddress   string
+	ipAddress    string
+	computerName string
+	clientId     string
 }
 
 func question(name string) dns.Question {
@@ -140,6 +163,68 @@ func question(name string) dns.Question {
 		Qtype:  dns.TypeTXT,
 		Qclass: dns.ClassCHAOS,
 	}
+}
+
+func parseLease(line string) (*lease, error) {
+	arr := strings.Fields(line)
+	if got, want := len(arr), 5; got != want {
+		return nil, fmt.Errorf("illegal lease: expected %d fields, got %d", want, got)
+	}
+
+	expires, err := strconv.ParseUint(arr[0], 10, 64)
+	if err != nil {
+		return nil, err
+	}
+
+	return &lease{
+		expiry:       expires,
+		macAddress:   arr[1],
+		ipAddress:    arr[2],
+		computerName: arr[3],
+		clientId:     arr[4],
+	}, nil
+}
+
+// Read the DHCP lease file with the given path and return a list of leases.
+//
+// The format of the DHCP lease file written by dnsmasq is not formally
+// documented in the dnsmasq manual but the format has been described in the
+// mailing list:
+//
+// - https://lists.thekelleys.org.uk/pipermail/dnsmasq-discuss/2006q2/000733.html
+// - https://lists.thekelleys.org.uk/pipermail/dnsmasq-discuss/2016q2/010595.html
+//
+// The DHCP lease file is written to by lease_update_file() in
+// src/lease.c, and is read by lease_init().
+func readLeaseFile(path string) ([]lease, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// ignore
+			return []lease{}, nil
+		}
+
+		return nil, err
+	}
+
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	activeLeases := []lease{}
+	for scanner.Scan() {
+		activeLease, err := parseLease(scanner.Text())
+		if err != nil {
+			return nil, err
+		}
+
+		activeLeases = append(activeLeases, *activeLease)
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	return activeLeases, nil
 }
 
 func (s *server) metrics(w http.ResponseWriter, r *http.Request) {
@@ -207,26 +292,24 @@ func (s *server) metrics(w http.ResponseWriter, r *http.Request) {
 	})
 
 	eg.Go(func() error {
-		f, err := os.Open(s.leasesPath)
+		activeLeases, err := readLeaseFile(s.leasesPath)
 		if err != nil {
-			if os.IsNotExist(err) {
-				// ignore
-				leases.Set(0)
-				return nil
+			return err
+		}
+
+		leases.Set(float64(len(activeLeases)))
+
+		if s.exposeLeases {
+			for _, activeLease := range activeLeases {
+				leaseMetrics.With(prometheus.Labels{
+					"mac_addr":      activeLease.macAddress,
+					"ip_addr":       activeLease.ipAddress,
+					"computer_name": activeLease.computerName,
+					"client_id":     activeLease.clientId,
+				}).Set(float64(activeLease.expiry))
 			}
-			log.Println("warn: could not open leases file:", err)
-			return err
 		}
-		defer f.Close()
-		scanner := bufio.NewScanner(f)
-		var lines float64
-		for scanner.Scan() {
-			lines++
-		}
-		if err := scanner.Err(); err != nil {
-			return err
-		}
-		leases.Set(lines)
+
 		return nil
 	})
 
@@ -245,8 +328,9 @@ func main() {
 		dnsClient: &dns.Client{
 			SingleInflight: true,
 		},
-		dnsmasqAddr: *dnsmasqAddr,
-		leasesPath:  *leasesPath,
+		dnsmasqAddr:  *dnsmasqAddr,
+		leasesPath:   *leasesPath,
+		exposeLeases: *exposeLeases,
 	}
 	http.HandleFunc(*metricsPath, s.metrics)
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
