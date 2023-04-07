@@ -1,6 +1,6 @@
 # dnsmasq exporter
 
-[![Build Status](https://travis-ci.org/google/dnsmasq_exporter.svg?branch=master)](https://travis-ci.org/google/dnsmasq_exporter)
+[![Build Status](https://github.com/google/dnsmasq_exporter/actions/workflows/go.yml/badge.svg?branch=main)](https://github.com/google/dnsmasq_exporter/actions)
 
 dnsmasq_exporter is an exporter for [Prometheus](https://prometheus.io/),
 allowing you to monitor/alert on the number of DHCP leases and various DNS
@@ -32,6 +32,7 @@ systemctl enable --now dnsmasq_exporter
 ```
 
 ### Alternative usage
+
 ```shell
 docker build -t dnsmasq_exporter .
 docker run --restart=unless-stopped --net=host dnsmasq_exporter
