@@ -69,6 +69,15 @@ var (
 		),
 	}
 
+	// individual lease metrics have high cardinality and are thus disabled by
+	// default, unless enabled with the -expose_leases flag
+	leaseMetrics = prometheus.NewDesc(
+		"dnsmasq_lease_expiry",
+		"Expiry time for active DHCP leases",
+		[]string{"mac_addr", "ip_addr", "computer_name", "client_id"},
+		nil,
+	)
+
 	leases = prometheus.NewDesc(
 		"dnsmasq_leases",
 		"Number of DHCP leases handed out",
@@ -86,23 +95,33 @@ var (
 
 // Collector implements prometheus.Collector and exposes dnsmasq metrics.
 type Collector struct {
-	log         log.Logger
-	dnsClient   *dns.Client
-	dnsmasqAddr string
-	leasesPath  string
+	log          log.Logger
+	dnsClient    *dns.Client
+	dnsmasqAddr  string
+	leasesPath   string
+	exposeLeases bool
+}
+
+type lease struct {
+	expiry       uint64
+	macAddress   string
+	ipAddress    string
+	computerName string
+	clientId     string
 }
 
 // New creates a new Collector.
-func New(l log.Logger, client *dns.Client, dnsmasqAddr string, leasesPath string) *Collector {
+func New(l log.Logger, client *dns.Client, dnsmasqAddr string, leasesPath string, exposeLeases bool) *Collector {
 	if l == nil {
 		l = log.NewNopLogger()
 	}
 
 	return &Collector{
-		log:         l,
-		dnsClient:   client,
-		dnsmasqAddr: dnsmasqAddr,
-		leasesPath:  leasesPath,
+		log:          l,
+		dnsClient:    client,
+		dnsmasqAddr:  dnsmasqAddr,
+		leasesPath:   leasesPath,
+		exposeLeases: exposeLeases,
 	}
 }
 
@@ -114,6 +133,7 @@ func (c *Collector) Describe(ch chan<- *prometheus.Desc) {
 		ch <- d
 	}
 	ch <- leases
+	ch <- leaseMetrics
 }
 
 func (c *Collector) Collect(ch chan<- prometheus.Metric) {
@@ -181,21 +201,18 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 	})
 
 	eg.Go(func() error {
-		f, err := os.Open(c.leasesPath)
+		activeLeases, err := readLeaseFile(c.leasesPath)
 		if err != nil {
-			level.Warn(c.log).Log("msg", "could not open leases file", "err", err)
 			return err
 		}
-		defer f.Close()
-		scanner := bufio.NewScanner(f)
-		var lines float64
-		for scanner.Scan() {
-			lines++
+		ch <- prometheus.MustNewConstMetric(leases, prometheus.GaugeValue, float64(len(activeLeases)))
+
+		if c.exposeLeases {
+			for _, activeLease := range activeLeases {
+				ch <- prometheus.MustNewConstMetric(leaseMetrics, prometheus.GaugeValue, float64(activeLease.expiry),
+					activeLease.macAddress, activeLease.ipAddress, activeLease.computerName, activeLease.clientId)
+			}
 		}
-		if err := scanner.Err(); err != nil {
-			return err
-		}
-		ch <- prometheus.MustNewConstMetric(leases, prometheus.GaugeValue, lines)
 		return nil
 	})
 
@@ -210,4 +227,66 @@ func question(name string) dns.Question {
 		Qtype:  dns.TypeTXT,
 		Qclass: dns.ClassCHAOS,
 	}
+}
+
+func parseLease(line string) (*lease, error) {
+	arr := strings.Fields(line)
+	if got, want := len(arr), 5; got != want {
+		return nil, fmt.Errorf("illegal lease: expected %d fields, got %d", want, got)
+	}
+
+	expires, err := strconv.ParseUint(arr[0], 10, 64)
+	if err != nil {
+		return nil, err
+	}
+
+	return &lease{
+		expiry:       expires,
+		macAddress:   arr[1],
+		ipAddress:    arr[2],
+		computerName: arr[3],
+		clientId:     arr[4],
+	}, nil
+}
+
+// Read the DHCP lease file with the given path and return a list of leases.
+//
+// The format of the DHCP lease file written by dnsmasq is not formally
+// documented in the dnsmasq manual but the format has been described in the
+// mailing list:
+//
+// - https://lists.thekelleys.org.uk/pipermail/dnsmasq-discuss/2006q2/000733.html
+// - https://lists.thekelleys.org.uk/pipermail/dnsmasq-discuss/2016q2/010595.html
+//
+// The DHCP lease file is written to by lease_update_file() in
+// src/lease.c, and is read by lease_init().
+func readLeaseFile(path string) ([]lease, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// ignore
+			return []lease{}, nil
+		}
+
+		return nil, err
+	}
+
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	activeLeases := []lease{}
+	for scanner.Scan() {
+		activeLease, err := parseLease(scanner.Text())
+		if err != nil {
+			return nil, err
+		}
+
+		activeLeases = append(activeLeases, *activeLease)
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	return activeLeases, nil
 }

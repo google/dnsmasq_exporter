@@ -34,6 +34,9 @@ var (
 		"localhost:9153",
 		"listen address")
 
+	exposeLeases = flag.Bool("expose_leases",
+		false,
+		"expose dnsmasq leases as metrics (high cardinality)")
 	leasesPath = flag.String("leases_path",
 		"/var/lib/misc/dnsmasq.leases",
 		"path to the dnsmasq leases file")
@@ -60,7 +63,7 @@ func main() {
 		dnsClient = &dns.Client{
 			SingleInflight: true,
 		}
-		collector = collector.New(logger, dnsClient, *dnsmasqAddr, *leasesPath)
+		collector = collector.New(logger, dnsClient, *dnsmasqAddr, *leasesPath, *exposeLeases)
 		reg       = prometheus.NewRegistry()
 	)
 
@@ -72,11 +75,11 @@ func main() {
 	))
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`<html>
-			<head><title>Dnsmasq Exporter</title></head>
-			<body>
-			<h1>Dnsmasq Exporter</h1>
-			<p><a href="` + *metricsPath + `">Metrics</a></p>
-			</body></html>`))
+      <head><title>Dnsmasq Exporter</title></head>
+      <body>
+      <h1>Dnsmasq Exporter</h1>
+      <p><a href="` + *metricsPath + `">Metrics</a></p>
+      </body></html>`))
 	})
 	level.Info(logger).Log("msg", "now listening", "listen_addr", *listen, "metrics_path", *metricsPath)
 
