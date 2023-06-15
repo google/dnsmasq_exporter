@@ -12,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-kit/log"
 	"github.com/miekg/dns"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -63,7 +62,6 @@ func TestDnsmasqExporter(t *testing.T) {
 	}
 
 	c := New(
-		log.NewNopLogger(),
 		&dns.Client{
 			SingleInflight: true,
 		},

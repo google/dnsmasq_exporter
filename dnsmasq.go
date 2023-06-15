@@ -17,11 +17,9 @@ package main
 
 import (
 	"flag"
+	"log"
 	"net/http"
-	"os"
 
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	"github.com/google/dnsmasq_exporter/collector"
 	"github.com/miekg/dns"
 	"github.com/prometheus/client_golang/prometheus"
@@ -54,16 +52,13 @@ func init() {
 }
 
 func main() {
-	logger := log.NewLogfmtLogger(log.NewSyncWriter(os.Stderr))
-	logger = log.With(logger, "ts", log.DefaultTimestampUTC)
-
 	flag.Parse()
 
 	var (
 		dnsClient = &dns.Client{
 			SingleInflight: true,
 		}
-		collector = collector.New(logger, dnsClient, *dnsmasqAddr, *leasesPath, *exposeLeases)
+		collector = collector.New(dnsClient, *dnsmasqAddr, *leasesPath, *exposeLeases)
 		reg       = prometheus.NewRegistry()
 	)
 
@@ -81,10 +76,7 @@ func main() {
       <p><a href="` + *metricsPath + `">Metrics</a></p>
       </body></html>`))
 	})
-	level.Info(logger).Log("msg", "now listening", "listen_addr", *listen, "metrics_path", *metricsPath)
-
-	if err := http.ListenAndServe(*listen, nil); err != nil {
-		level.Error(logger).Log("msg", "listener failed", "err", err)
-		os.Exit(1)
-	}
+	log.Println("Listening on", *listen)
+	log.Println("Service metrics under", *metricsPath)
+	log.Fatal(http.ListenAndServe(*listen, nil))
 }

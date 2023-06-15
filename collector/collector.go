@@ -4,12 +4,11 @@ package collector
 import (
 	"bufio"
 	"fmt"
+	"log"
 	"os"
 	"strconv"
 	"strings"
 
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	"github.com/miekg/dns"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sync/errgroup"
@@ -95,7 +94,6 @@ var (
 
 // Collector implements prometheus.Collector and exposes dnsmasq metrics.
 type Collector struct {
-	log          log.Logger
 	dnsClient    *dns.Client
 	dnsmasqAddr  string
 	leasesPath   string
@@ -111,13 +109,8 @@ type lease struct {
 }
 
 // New creates a new Collector.
-func New(l log.Logger, client *dns.Client, dnsmasqAddr string, leasesPath string, exposeLeases bool) *Collector {
-	if l == nil {
-		l = log.NewNopLogger()
-	}
-
+func New(client *dns.Client, dnsmasqAddr string, leasesPath string, exposeLeases bool) *Collector {
 	return &Collector{
-		log:          l,
 		dnsClient:    client,
 		dnsmasqAddr:  dnsmasqAddr,
 		leasesPath:   leasesPath,
@@ -217,7 +210,7 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 	})
 
 	if err := eg.Wait(); err != nil {
-		level.Warn(c.log).Log("msg", "could not complete scrape", "err", err)
+		log.Printf("could not complete scrape: %v", err)
 	}
 }
 
