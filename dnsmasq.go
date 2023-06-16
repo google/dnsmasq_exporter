@@ -58,7 +58,13 @@ func main() {
 		dnsClient = &dns.Client{
 			SingleInflight: true,
 		}
-		collector = collector.New(dnsClient, *dnsmasqAddr, *leasesPath, *exposeLeases)
+		cfg = collector.Config{
+			DnsClient:    dnsClient,
+			DnsmasqAddr:  *dnsmasqAddr,
+			LeasesPath:   *leasesPath,
+			ExposeLeases: *exposeLeases,
+		}
+		collector = collector.New(cfg)
 		reg       = prometheus.NewRegistry()
 	)
 

@@ -75,14 +75,16 @@ func TestDnsmasqExporter(t *testing.T) {
 		time.Sleep(10 * time.Millisecond) // do not hog the CPU
 	}
 
-	c := New(
-		&dns.Client{
+	cfg := Config{
+		DnsClient: &dns.Client{
 			SingleInflight: true,
 		},
-		"localhost:"+port,
-		"testdata/dnsmasq.leases",
-		false,
-	)
+		DnsmasqAddr:  "localhost:" + port,
+		LeasesPath:   "testdata/dnsmasq.leases",
+		ExposeLeases: false,
+	}
+
+	c := New(cfg)
 
 	t.Run("first", func(t *testing.T) {
 		metrics := fetchMetrics(t, c)
@@ -145,7 +147,7 @@ func TestDnsmasqExporter(t *testing.T) {
 		}
 	})
 
-	c.exposeLeases = true
+	c.cfg.ExposeLeases = true
 
 	t.Run("with high-cardinality lease metrics enabled", func(t *testing.T) {
 		metrics := fetchMetrics(t, c)
@@ -164,7 +166,7 @@ func TestDnsmasqExporter(t *testing.T) {
 		}
 	})
 
-	c.leasesPath = "testdata/dnsmasq.leases.does.not.exists"
+	c.cfg.LeasesPath = "testdata/dnsmasq.leases.does.not.exists"
 
 	t.Run("without leases file", func(t *testing.T) {
 		metrics := fetchMetrics(t, c)

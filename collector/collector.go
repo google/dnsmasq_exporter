@@ -106,12 +106,17 @@ var (
 // be:
 //     dig +short chaos txt cachesize.bind
 
+// Config contains the configuration for the collector.
+type Config struct {
+	DnsClient    *dns.Client
+	DnsmasqAddr  string
+	LeasesPath   string
+	ExposeLeases bool
+}
+
 // Collector implements prometheus.Collector and exposes dnsmasq metrics.
 type Collector struct {
-	dnsClient    *dns.Client
-	dnsmasqAddr  string
-	leasesPath   string
-	exposeLeases bool
+	cfg Config
 }
 
 type lease struct {
@@ -123,12 +128,9 @@ type lease struct {
 }
 
 // New creates a new Collector.
-func New(client *dns.Client, dnsmasqAddr string, leasesPath string, exposeLeases bool) *Collector {
+func New(cfg Config) *Collector {
 	return &Collector{
-		dnsClient:    client,
-		dnsmasqAddr:  dnsmasqAddr,
-		leasesPath:   leasesPath,
-		exposeLeases: exposeLeases,
+		cfg: cfg,
 	}
 }
 
@@ -162,7 +164,7 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 				question("servers.bind."),
 			},
 		}
-		in, _, err := c.dnsClient.Exchange(msg, c.dnsmasqAddr)
+		in, _, err := c.cfg.DnsClient.Exchange(msg, c.cfg.DnsmasqAddr)
 		if err != nil {
 			return err
 		}
@@ -208,13 +210,13 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 	})
 
 	eg.Go(func() error {
-		activeLeases, err := readLeaseFile(c.leasesPath)
+		activeLeases, err := readLeaseFile(c.cfg.LeasesPath)
 		if err != nil {
 			return err
 		}
 		ch <- prometheus.MustNewConstMetric(leases, prometheus.GaugeValue, float64(len(activeLeases)))
 
-		if c.exposeLeases {
+		if c.cfg.ExposeLeases {
 			for _, activeLease := range activeLeases {
 				ch <- prometheus.MustNewConstMetric(leaseMetrics, prometheus.GaugeValue, float64(activeLease.expiry),
 					activeLease.macAddress, activeLease.ipAddress, activeLease.computerName, activeLease.clientId)
