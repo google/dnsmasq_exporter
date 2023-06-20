@@ -75,12 +75,17 @@ func TestDnsmasqExporter(t *testing.T) {
 		time.Sleep(10 * time.Millisecond) // do not hog the CPU
 	}
 
+	testDataFilePath := os.Getenv("TESTDATA_FILE_PATH")
+	if testDataFilePath == "" {
+		testDataFilePath = "./testdata/dnsmasq.leases"
+	}
+
 	cfg := Config{
 		DnsClient: &dns.Client{
 			SingleInflight: true,
 		},
 		DnsmasqAddr:  "localhost:" + port,
-		LeasesPath:   "testdata/dnsmasq.leases",
+		LeasesPath:   testDataFilePath,
 		ExposeLeases: false,
 	}
 
