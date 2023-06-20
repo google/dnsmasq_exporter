@@ -1,4 +1,18 @@
-package main
+// Copyright 2016 Google Inc. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package collector
 
 import (
 	"fmt"
@@ -13,6 +27,7 @@ import (
 	"time"
 
 	"github.com/miekg/dns"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
@@ -60,18 +75,24 @@ func TestDnsmasqExporter(t *testing.T) {
 		time.Sleep(10 * time.Millisecond) // do not hog the CPU
 	}
 
-	s := &server{
-		promHandler: promhttp.Handler(),
-		dnsClient: &dns.Client{
-			SingleInflight: true,
-		},
-		dnsmasqAddr:  "localhost:" + port,
-		leasesPath:   "testdata/dnsmasq.leases",
-		exposeLeases: false,
+	testDataFilePath := os.Getenv("TESTDATA_FILE_PATH")
+	if testDataFilePath == "" {
+		testDataFilePath = "./testdata/dnsmasq.leases"
 	}
 
+	cfg := Config{
+		DnsClient: &dns.Client{
+			SingleInflight: true,
+		},
+		DnsmasqAddr:  "localhost:" + port,
+		LeasesPath:   testDataFilePath,
+		ExposeLeases: false,
+	}
+
+	c := New(cfg)
+
 	t.Run("first", func(t *testing.T) {
-		metrics := fetchMetrics(t, s)
+		metrics := fetchMetrics(t, c)
 		want := map[string]string{
 			"dnsmasq_leases":    "2",
 			"dnsmasq_cachesize": "666",
@@ -86,7 +107,7 @@ func TestDnsmasqExporter(t *testing.T) {
 	})
 
 	t.Run("second", func(t *testing.T) {
-		metrics := fetchMetrics(t, s)
+		metrics := fetchMetrics(t, c)
 		want := map[string]string{
 			"dnsmasq_leases":    "2",
 			"dnsmasq_cachesize": "666",
@@ -108,7 +129,7 @@ func TestDnsmasqExporter(t *testing.T) {
 	}
 
 	t.Run("after query", func(t *testing.T) {
-		metrics := fetchMetrics(t, s)
+		metrics := fetchMetrics(t, c)
 		want := map[string]string{
 			"dnsmasq_leases":    "2",
 			"dnsmasq_cachesize": "666",
@@ -123,7 +144,7 @@ func TestDnsmasqExporter(t *testing.T) {
 	})
 
 	t.Run("should not expose lease information when disabled", func(t *testing.T) {
-		metrics := fetchMetrics(t, s)
+		metrics := fetchMetrics(t, c)
 		for key, _ := range metrics {
 			if strings.Contains(key, "dnsmasq_lease_expiry") {
 				t.Errorf("lease information should not be exposed when disabled: %v", key)
@@ -131,10 +152,10 @@ func TestDnsmasqExporter(t *testing.T) {
 		}
 	})
 
-	s.exposeLeases = true
+	c.cfg.ExposeLeases = true
 
 	t.Run("with high-cardinality lease metrics enabled", func(t *testing.T) {
-		metrics := fetchMetrics(t, s)
+		metrics := fetchMetrics(t, c)
 		want := map[string]string{
 			"dnsmasq_leases":    "2",
 			"dnsmasq_cachesize": "666",
@@ -150,10 +171,10 @@ func TestDnsmasqExporter(t *testing.T) {
 		}
 	})
 
-	s.leasesPath = "testdata/dnsmasq.leases.does.not.exists"
+	c.cfg.LeasesPath = "testdata/dnsmasq.leases.does.not.exists"
 
 	t.Run("without leases file", func(t *testing.T) {
-		metrics := fetchMetrics(t, s)
+		metrics := fetchMetrics(t, c)
 		want := map[string]string{
 			"dnsmasq_leases":    "0",
 			"dnsmasq_cachesize": "666",
@@ -169,9 +190,13 @@ func TestDnsmasqExporter(t *testing.T) {
 
 }
 
-func fetchMetrics(t *testing.T, s *server) map[string]string {
+func fetchMetrics(t *testing.T, c *Collector) map[string]string {
+	reg := prometheus.NewRegistry()
+	reg.MustRegister(c)
+	handler := promhttp.HandlerFor(reg, promhttp.HandlerOpts{})
+
 	rec := httptest.NewRecorder()
-	s.metrics(rec, httptest.NewRequest("GET", "/metrics", nil))
+	handler.ServeHTTP(rec, httptest.NewRequest("GET", "/metrics", nil))
 	resp := rec.Result()
 	if got, want := resp.StatusCode, http.StatusOK; got != want {
 		b, _ := ioutil.ReadAll(resp.Body)

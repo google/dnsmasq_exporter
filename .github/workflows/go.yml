@@ -21,11 +21,10 @@ jobs:
       run: go install github.com/google/dnsmasq_exporter
 
     - name: build tests
-      run: go test -c
+      run: go test -c ./collector
 
     - name: docker build
       run: docker build --pull --no-cache --rm -t=dns -f travis/Dockerfile .
 
     - name: run tests in docker
-      run: docker run -v $PWD:/usr/src:ro dns /bin/sh -c './dnsmasq_exporter.test -test.v'
-
+      run: docker run -v $PWD:/usr/src:ro -e TESTDATA_FILE_PATH=/usr/src/collector/testdata/dnsmasq.leases dns /bin/sh -c './collector.test -test.v'
