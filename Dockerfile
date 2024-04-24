@@ -1,5 +1,5 @@
 # build stage
-FROM golang:1.17.2-stretch AS build-env
+FROM golang:1.22.2 AS build-env
 ADD . /src
 ENV CGO_ENABLED=0
 WORKDIR /src
