@@ -158,12 +158,11 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 			"auth.bind.",
 			"servers.bind.",
 		}
-
+		id := dns.Id()
 		for _, q := range questions {
 			msg := &dns.Msg{
 				MsgHdr: dns.MsgHdr{
-					Id:               dns.Id(),
-					RecursionDesired: true,
+					Id: id,
 				},
 				Question: []dns.Question{
 					question(q),
