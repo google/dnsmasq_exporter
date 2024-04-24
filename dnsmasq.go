@@ -35,6 +35,7 @@ var (
 	exposeLeases = flag.Bool("expose_leases",
 		false,
 		"expose dnsmasq leases as metrics (high cardinality)")
+
 	leasesPath = flag.String("leases_path",
 		"/var/lib/misc/dnsmasq.leases",
 		"path to the dnsmasq leases file")
@@ -42,6 +43,10 @@ var (
 	dnsmasqAddr = flag.String("dnsmasq",
 		"localhost:53",
 		"dnsmasq host:port address")
+	dnsmasqProtocol = flag.String("protocol",
+		"udp",
+		"connect using udp or tcp")
+
 	metricsPath = flag.String("metrics_path",
 		"/metrics",
 		"path under which metrics are served")
@@ -57,6 +62,7 @@ func main() {
 	var (
 		dnsClient = &dns.Client{
 			SingleInflight: true,
+			Net:            *dnsmasqProtocol,
 		}
 		cfg = collector.Config{
 			DnsClient:    dnsClient,
