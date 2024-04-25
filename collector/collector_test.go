@@ -96,7 +96,7 @@ func TestDnsmasqExporter(t *testing.T) {
 		want := map[string]string{
 			"dnsmasq_leases":    "2",
 			"dnsmasq_cachesize": "666",
-			"dnsmasq_hits":      "1",
+			"dnsmasq_hits":      "5",
 			"dnsmasq_misses":    "0",
 		}
 		for key, val := range want {
@@ -111,7 +111,7 @@ func TestDnsmasqExporter(t *testing.T) {
 		want := map[string]string{
 			"dnsmasq_leases":    "2",
 			"dnsmasq_cachesize": "666",
-			"dnsmasq_hits":      "2",
+			"dnsmasq_hits":      "12",
 			"dnsmasq_misses":    "0",
 		}
 		for key, val := range want {
@@ -133,7 +133,7 @@ func TestDnsmasqExporter(t *testing.T) {
 		want := map[string]string{
 			"dnsmasq_leases":    "2",
 			"dnsmasq_cachesize": "666",
-			"dnsmasq_hits":      "3",
+			"dnsmasq_hits":      "19",
 			"dnsmasq_misses":    "1",
 		}
 		for key, val := range want {
@@ -159,7 +159,7 @@ func TestDnsmasqExporter(t *testing.T) {
 		want := map[string]string{
 			"dnsmasq_leases":    "2",
 			"dnsmasq_cachesize": "666",
-			"dnsmasq_hits":      "5",
+			"dnsmasq_hits":      "33",
 			"dnsmasq_misses":    "1",
 			"dnsmasq_lease_expiry{client_id=\"00:00:00:00:00:00\",computer_name=\"host-1\",ip_addr=\"10.10.10.10\",mac_addr=\"00:00:00:00:00:00\"}": "1.625595932e+09",
 			"dnsmasq_lease_expiry{client_id=\"00:00:00:00:00:01\",computer_name=\"host-2\",ip_addr=\"10.10.10.11\",mac_addr=\"00:00:00:00:00:01\"}": "0",
@@ -178,7 +178,7 @@ func TestDnsmasqExporter(t *testing.T) {
 		want := map[string]string{
 			"dnsmasq_leases":    "0",
 			"dnsmasq_cachesize": "666",
-			"dnsmasq_hits":      "6",
+			"dnsmasq_hits":      "40",
 			"dnsmasq_misses":    "1",
 		}
 		for key, val := range want {

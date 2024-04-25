@@ -149,63 +149,24 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 	var eg errgroup.Group
 
 	eg.Go(func() error {
-		msg := &dns.Msg{
-			MsgHdr: dns.MsgHdr{
-				Id:               dns.Id(),
-				RecursionDesired: true,
-			},
-			Question: []dns.Question{
-				question("cachesize.bind."),
-				question("insertions.bind."),
-				question("evictions.bind."),
-				question("misses.bind."),
-				question("hits.bind."),
-				question("auth.bind."),
-				question("servers.bind."),
-			},
+		questionBinds := []string{
+			"cachesize.bind.",
+			"insertions.bind.",
+			"evictions.bind.",
+			"misses.bind.",
+			"hits.bind.",
+			"auth.bind.",
+			"servers.bind.",
 		}
-		in, _, err := c.cfg.DnsClient.Exchange(msg, c.cfg.DnsmasqAddr)
-		if err != nil {
-			return err
-		}
-		for _, a := range in.Answer {
-			txt, ok := a.(*dns.TXT)
-			if !ok {
-				continue
-			}
-			switch txt.Hdr.Name {
-			case "servers.bind.":
-				for _, str := range txt.Txt {
-					arr := strings.Fields(str)
-					if got, want := len(arr), 3; got != want {
-						return fmt.Errorf("stats DNS record servers.bind.: unexpeced number of argument in record: got %d, want %d", got, want)
-					}
-					queries, err := strconv.ParseFloat(arr[1], 64)
-					if err != nil {
-						return err
-					}
-					failedQueries, err := strconv.ParseFloat(arr[2], 64)
-					if err != nil {
-						return err
-					}
-					ch <- prometheus.MustNewConstMetric(serversMetrics["queries"], prometheus.GaugeValue, queries, arr[0])
-					ch <- prometheus.MustNewConstMetric(serversMetrics["queries_failed"], prometheus.GaugeValue, failedQueries, arr[0])
-				}
-			default:
-				g, ok := floatMetrics[txt.Hdr.Name]
-				if !ok {
-					continue // ignore unexpected answer from dnsmasq
-				}
-				if got, want := len(txt.Txt), 1; got != want {
-					return fmt.Errorf("stats DNS record %q: unexpected number of replies: got %d, want %d", txt.Hdr.Name, got, want)
-				}
-				f, err := strconv.ParseFloat(txt.Txt[0], 64)
-				if err != nil {
-					return err
-				}
-				ch <- prometheus.MustNewConstMetric(g, prometheus.GaugeValue, f)
+
+		for _, questionBind := range questionBinds {
+			err := queryDnsmasq(questionBind, c, ch)
+
+			if err != nil {
+				return err
 			}
 		}
+
 		return nil
 	})
 
@@ -228,6 +189,62 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 	if err := eg.Wait(); err != nil {
 		log.Printf("could not complete scrape: %v", err)
 	}
+}
+
+func queryDnsmasq(questionBind string, c *Collector, ch chan<- prometheus.Metric) error {
+	msg := &dns.Msg{
+		MsgHdr: dns.MsgHdr{
+			Id:               dns.Id(),
+			RecursionDesired: true,
+		},
+		Question: []dns.Question{
+			question(questionBind),
+		},
+	}
+	in, _, err := c.cfg.DnsClient.Exchange(msg, c.cfg.DnsmasqAddr)
+	if err != nil {
+		return err
+	}
+	for _, a := range in.Answer {
+		txt, ok := a.(*dns.TXT)
+		if !ok {
+			continue
+		}
+		switch txt.Hdr.Name {
+		case "servers.bind.":
+			for _, str := range txt.Txt {
+				arr := strings.Fields(str)
+				if got, want := len(arr), 3; got != want {
+					return fmt.Errorf("stats DNS record servers.bind.: unexpeced number of argument in record: got %d, want %d", got, want)
+				}
+				queries, err := strconv.ParseFloat(arr[1], 64)
+				if err != nil {
+					return err
+				}
+				failedQueries, err := strconv.ParseFloat(arr[2], 64)
+				if err != nil {
+					return err
+				}
+				ch <- prometheus.MustNewConstMetric(serversMetrics["queries"], prometheus.GaugeValue, queries, arr[0])
+				ch <- prometheus.MustNewConstMetric(serversMetrics["queries_failed"], prometheus.GaugeValue, failedQueries, arr[0])
+			}
+		default:
+			g, ok := floatMetrics[txt.Hdr.Name]
+			if !ok {
+				continue // ignore unexpected answer from dnsmasq
+			}
+			if got, want := len(txt.Txt), 1; got != want {
+				return fmt.Errorf("stats DNS record %q: unexpected number of replies: got %d, want %d", txt.Hdr.Name, got, want)
+			}
+			f, err := strconv.ParseFloat(txt.Txt[0], 64)
+			if err != nil {
+				return err
+			}
+			ch <- prometheus.MustNewConstMetric(g, prometheus.GaugeValue, f)
+		}
+	}
+
+	return nil
 }
 
 func question(name string) dns.Question {
