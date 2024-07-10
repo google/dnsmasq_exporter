@@ -304,7 +304,7 @@ func readLeaseFile(path string) ([]lease, error) {
 	for scanner.Scan() {
 		activeLease, err := parseLease(scanner.Text())
 		if err != nil {
-			return nil, err
+			continue
 		}
 
 		activeLeases = append(activeLeases, *activeLease)
