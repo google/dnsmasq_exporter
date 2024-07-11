@@ -1,0 +1,17 @@
+# .goreleaser.yml
+project_name: dnsmasq_exporter
+builds:
+  - id: dnsmasq_exporter
+    main: .
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - 386
+      - arm64
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w
