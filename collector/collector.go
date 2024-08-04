@@ -302,12 +302,12 @@ func readLeaseFile(path string) ([]lease, error) {
 	scanner := bufio.NewScanner(f)
 	activeLeases := []lease{}
 	for scanner.Scan() {
-		activeLease, err := parseLease(scanner.Text())
-		if err != nil {
-			return nil, err
+		leaseLine := scanner.Text()
+		if activeLease, err := parseLease(leaseLine); err == nil {
+			activeLeases = append(activeLeases, *activeLease)
+		} else {
+			log.Print(fmt.Errorf("error parsing lease (%s): %w", leaseLine, err))
 		}
-
-		activeLeases = append(activeLeases, *activeLease)
 	}
 
 	if err := scanner.Err(); err != nil {
