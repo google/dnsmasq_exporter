@@ -16,7 +16,7 @@ package collector
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -145,7 +145,7 @@ func TestDnsmasqExporter(t *testing.T) {
 
 	t.Run("should not expose lease information when disabled", func(t *testing.T) {
 		metrics := fetchMetrics(t, c)
-		for key, _ := range metrics {
+		for key := range metrics {
 			if strings.Contains(key, "dnsmasq_lease_expiry") {
 				t.Errorf("lease information should not be exposed when disabled: %v", key)
 			}
@@ -199,10 +199,10 @@ func fetchMetrics(t *testing.T, c *Collector) map[string]string {
 	handler.ServeHTTP(rec, httptest.NewRequest("GET", "/metrics", nil))
 	resp := rec.Result()
 	if got, want := resp.StatusCode, http.StatusOK; got != want {
-		b, _ := ioutil.ReadAll(resp.Body)
+		b, _ := io.ReadAll(resp.Body)
 		t.Fatalf("unexpected HTTP status: got %v (%v), want %v", resp.Status, string(b), want)
 	}
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatal(err)
 	}
