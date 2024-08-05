@@ -306,7 +306,7 @@ func readLeaseFile(path string) ([]lease, error) {
 		if activeLease, err := parseLease(leaseLine); err == nil {
 			activeLeases = append(activeLeases, *activeLease)
 		} else {
-			log.Print(fmt.Errorf("error parsing lease (%d, %s): %w", i, leaseLine, err))
+			log.Printf("Error parsing lease (%d, %q): %s", i, leaseLine, err)
 		}
 	}
 
