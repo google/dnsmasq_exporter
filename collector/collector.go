@@ -301,13 +301,13 @@ func readLeaseFile(path string) ([]lease, error) {
 
 	scanner := bufio.NewScanner(f)
 	activeLeases := []lease{}
-	for scanner.Scan() {
-		activeLease, err := parseLease(scanner.Text())
-		if err != nil {
-			return nil, err
+	for i := 1; scanner.Scan(); i++ {
+		leaseLine := scanner.Text()
+		if activeLease, err := parseLease(leaseLine); err == nil {
+			activeLeases = append(activeLeases, *activeLease)
+		} else {
+			log.Printf("Error parsing lease (%d, %q): %s", i, leaseLine, err)
 		}
-
-		activeLeases = append(activeLeases, *activeLease)
 	}
 
 	if err := scanner.Err(); err != nil {
