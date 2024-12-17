@@ -17,7 +17,7 @@ This is not an official Google product.
 ## Installation
 
 ``` shell
-go get -u github.com/google/dnsmasq_exporter
+go install github.com/google/dnsmasq_exporter@latest
 ```
 
 ## Usage
