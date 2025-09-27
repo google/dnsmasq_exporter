@@ -15,6 +15,7 @@
 package collector
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -221,4 +222,18 @@ func fetchMetrics(t *testing.T, c *Collector) map[string]string {
 		metrics[parts[0]] = parts[1]
 	}
 	return metrics
+}
+
+func TestParseLeaseSkipsMetadataLines(t *testing.T) {
+	t.Parallel()
+
+	for _, line := range []string{
+		"duid 00:01:00:01:ff:6f:ff:6e:aa:cf:ff:af:4a:8b",
+		"vendorclass something",
+		"   ",
+	} {
+		if lease, err := parseLease(line); !errors.Is(err, errSkipLease) || lease != nil {
+			t.Fatalf("parseLease(%q) = (%v, %v), want skip error", line, lease, err)
+		}
+	}
 }
