@@ -17,6 +17,7 @@ package collector
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -256,6 +257,13 @@ func question(name string) dns.Question {
 }
 
 func parseLease(line string) (*lease, error) {
+	if strings.TrimSpace(line) == "" {
+		return nil, errSkipLease
+	}
+	if strings.HasPrefix(line, "duid ") || strings.HasPrefix(line, "vendorclass ") {
+		return nil, errSkipLease
+	}
+
 	arr := strings.Fields(line)
 	if got, want := len(arr), 5; got != want {
 		return nil, fmt.Errorf("illegal lease: expected %d fields, got %d", want, got)
@@ -274,6 +282,8 @@ func parseLease(line string) (*lease, error) {
 		clientId:     arr[4],
 	}, nil
 }
+
+var errSkipLease = errors.New("skip lease line")
 
 // Read the DHCP lease file with the given path and return a list of leases.
 //
@@ -303,7 +313,11 @@ func readLeaseFile(path string) ([]lease, error) {
 	activeLeases := []lease{}
 	for i := 1; scanner.Scan(); i++ {
 		leaseLine := scanner.Text()
-		if activeLease, err := parseLease(leaseLine); err == nil {
+		activeLease, err := parseLease(leaseLine)
+		if errors.Is(err, errSkipLease) {
+			continue
+		}
+		if err == nil {
 			activeLeases = append(activeLeases, *activeLease)
 		} else {
 			log.Printf("Error parsing lease (%d, %q): %s", i, leaseLine, err)
