@@ -23,8 +23,9 @@ import (
 	"github.com/google/dnsmasq_exporter/collector"
 	"github.com/miekg/dns"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
+	"github.com/prometheus/client_golang/prometheus/collectors/version"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/prometheus/common/version"
 )
 
 var (
@@ -53,6 +54,7 @@ var (
 )
 
 func init() {
+	prometheus.MustRegister(collectors.NewBuildInfoCollector())
 	prometheus.MustRegister(version.NewCollector("dnsmasq_exporter"))
 }
 
