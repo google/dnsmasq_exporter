@@ -109,10 +109,11 @@ var (
 
 // Config contains the configuration for the collector.
 type Config struct {
-	DnsClient    *dns.Client
-	DnsmasqAddr  string
-	LeasesPath   string
-	ExposeLeases bool
+	DnsClient         *dns.Client
+	DnsmasqAddr       string
+	LeasesPath        string
+	ExposeLeases      bool
+	DisableDnsQueries bool
 }
 
 // Collector implements prometheus.Collector and exposes dnsmasq metrics.
@@ -150,6 +151,10 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 	var eg errgroup.Group
 
 	eg.Go(func() error {
+		if c.cfg.DisableDnsQueries {
+			return nil
+		}
+
 		questionBinds := []string{
 			"cachesize.bind.",
 			"insertions.bind.",

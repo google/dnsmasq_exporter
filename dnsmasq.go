@@ -51,6 +51,10 @@ var (
 	metricsPath = flag.String("metrics_path",
 		"/metrics",
 		"path under which metrics are served")
+
+	disableDnsQueries = flag.Bool("disable_dns_queries",
+		false,
+		"disable dns queries (only expose lease metrics)")
 )
 
 func init() {
@@ -67,10 +71,11 @@ func main() {
 			Net:            *dnsmasqProtocol,
 		}
 		cfg = collector.Config{
-			DnsClient:    dnsClient,
-			DnsmasqAddr:  *dnsmasqAddr,
-			LeasesPath:   *leasesPath,
-			ExposeLeases: *exposeLeases,
+			DnsClient:         dnsClient,
+			DnsmasqAddr:       *dnsmasqAddr,
+			LeasesPath:        *leasesPath,
+			ExposeLeases:      *exposeLeases,
+			DisableDnsQueries: *disableDnsQueries,
 		}
 		collector = collector.New(cfg)
 		reg       = prometheus.NewRegistry()

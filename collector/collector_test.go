@@ -237,3 +237,81 @@ func TestParseLeaseSkipsMetadataLines(t *testing.T) {
 		}
 	}
 }
+
+func TestDisableDnsQueries(t *testing.T) {
+	dnsAddr := startTestDnsmasqServer(t)
+
+	cfg := Config{
+		DnsClient:   &dns.Client{},
+		DnsmasqAddr: dnsAddr,
+		LeasesPath:  "testdata/dnsmasq.leases",
+	}
+	c := New(cfg)
+
+	t.Run("with dns queries enabled", func(t *testing.T) {
+		metrics := fetchMetrics(t, c)
+		for _, name := range []string{"dnsmasq_cachesize", "dnsmasq_hits"} {
+			if _, ok := metrics[name]; !ok {
+				t.Errorf("expected metric %q to be exposed, got %v", name, metrics)
+			}
+		}
+	})
+
+	c.cfg.DisableDnsQueries = true
+
+	t.Run("with dns queries disabled", func(t *testing.T) {
+		metrics := fetchMetrics(t, c)
+		for key := range metrics {
+			if key != "dnsmasq_leases" {
+				t.Errorf("unexpected metric %q exposed when dns queries are disabled", key)
+			}
+		}
+		if got, want := metrics["dnsmasq_leases"], "2"; got != want {
+			t.Errorf("dnsmasq_leases: got %q, want %q", got, want)
+		}
+	})
+}
+
+// startTestDnsmasqServer starts a minimal DNS server which answers the CHAOS
+// TXT queries the exporter issues, and returns its address.
+func startTestDnsmasqServer(t *testing.T) string {
+	t.Helper()
+
+	packetConn, err := net.ListenPacket("udp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	server := &dns.Server{
+		PacketConn: packetConn,
+		Handler: dns.HandlerFunc(func(w dns.ResponseWriter, r *dns.Msg) {
+			m := new(dns.Msg)
+			m.SetReply(r)
+			for _, q := range r.Question {
+				answer := "12345"
+				if q.Name == "servers.bind." {
+					answer = "server1 1 2"
+				}
+				m.Answer = append(m.Answer, &dns.TXT{
+					Hdr: dns.RR_Header{
+						Name:   q.Name,
+						Rrtype: dns.TypeTXT,
+						Class:  dns.ClassCHAOS,
+						Ttl:    0,
+					},
+					Txt: []string{answer},
+				})
+			}
+			w.WriteMsg(m)
+		}),
+	}
+
+	go func() {
+		_ = server.ActivateAndServe()
+	}()
+	t.Cleanup(func() {
+		_ = server.Shutdown()
+	})
+
+	return packetConn.LocalAddr().String()
+}
