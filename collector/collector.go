@@ -149,47 +149,63 @@ func (c *Collector) Describe(ch chan<- *prometheus.Desc) {
 func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 	var eg errgroup.Group
 
-	eg.Go(func() error {
-		questionBinds := []string{
-			"cachesize.bind.",
-			"insertions.bind.",
-			"evictions.bind.",
-			"misses.bind.",
-			"hits.bind.",
-			"auth.bind.",
-			"servers.bind.",
-		}
+	if c.cfg.DnsmasqAddr != "" {
+		eg.Go(func() error{
+			return c.collectMetrics(ch)
+		})
+	}
 
-		for _, questionBind := range questionBinds {
-			err := queryDnsmasq(questionBind, c, ch)
-
-			if err != nil {
-				return err
-			}
-		}
-
-		return nil
-	})
-
-	eg.Go(func() error {
-		activeLeases, err := readLeaseFile(c.cfg.LeasesPath)
-		if err != nil {
-			return err
-		}
-		ch <- prometheus.MustNewConstMetric(leases, prometheus.GaugeValue, float64(len(activeLeases)))
-
-		if c.cfg.ExposeLeases {
-			for _, activeLease := range activeLeases {
-				ch <- prometheus.MustNewConstMetric(leaseMetrics, prometheus.GaugeValue, float64(activeLease.expiry),
-					activeLease.macAddress, activeLease.ipAddress, activeLease.computerName, activeLease.clientId)
-			}
-		}
-		return nil
-	})
+	if c.cfg.ExposeLeases {
+		eg.Go(func() error {
+			return c.collectLeases(ch)
+		})
+	}
 
 	if err := eg.Wait(); err != nil {
 		log.Printf("could not complete scrape: %v", err)
 	}
+}
+
+func (c *Collector) collectMetrics(ch chan<- prometheus.Metric) error {
+	questionBinds := []string{
+		"cachesize.bind.",
+		"insertions.bind.",
+		"evictions.bind.",
+		"misses.bind.",
+		"hits.bind.",
+		"auth.bind.",
+		"servers.bind.",
+	}
+
+	for _, questionBind := range questionBinds {
+		err := queryDnsmasq(questionBind, c, ch)
+
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (c *Collector) collectLeases(ch chan<- prometheus.Metric) error {
+	if !c.cfg.ExposeLeases {
+		return nil
+	}
+
+	activeLeases, err := readLeaseFile(c.cfg.LeasesPath)
+	if err != nil {
+		return err
+	}
+	ch <- prometheus.MustNewConstMetric(leases, prometheus.GaugeValue, float64(len(activeLeases)))
+
+	if c.cfg.ExposeLeases {
+		for _, activeLease := range activeLeases {
+			ch <- prometheus.MustNewConstMetric(leaseMetrics, prometheus.GaugeValue, float64(activeLease.expiry),
+				activeLease.macAddress, activeLease.ipAddress, activeLease.computerName, activeLease.clientId)
+		}
+	}
+	return nil
 }
 
 func queryDnsmasq(questionBind string, c *Collector, ch chan<- prometheus.Metric) error {

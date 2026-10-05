@@ -144,6 +144,19 @@ func TestDnsmasqExporter(t *testing.T) {
 		}
 	})
 
+	c.cfg.DnsmasqAddr = ""
+
+	t.Run("should not expose cache metrics when disabled", func(t *testing.T) {
+		metrics := fetchMetrics(t, c)
+		for key := range metrics {
+			if strings.Contains(key, "dnsmasq_cachesize") {
+				t.Errorf("cache metrics should not be exposed when disabled: %v", key)
+			}
+		}
+	})
+
+	c.cfg.DnsmasqAddr = "localhost:" + port
+
 	t.Run("should not expose lease information when disabled", func(t *testing.T) {
 		metrics := fetchMetrics(t, c)
 		for key := range metrics {
