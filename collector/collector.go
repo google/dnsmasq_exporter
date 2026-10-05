@@ -150,7 +150,7 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 	var eg errgroup.Group
 
 	if c.cfg.DnsmasqAddr != "" {
-		eg.Go(func() error{
+		eg.Go(func() error {
 			return c.collectMetrics(ch)
 		})
 	}
