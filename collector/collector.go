@@ -155,11 +155,9 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 		})
 	}
 
-	if c.cfg.ExposeLeases {
-		eg.Go(func() error {
-			return c.collectLeases(ch)
-		})
-	}
+	eg.Go(func() error {
+		return c.collectLeases(ch)
+	})
 
 	if err := eg.Wait(); err != nil {
 		log.Printf("could not complete scrape: %v", err)
@@ -189,10 +187,6 @@ func (c *Collector) collectMetrics(ch chan<- prometheus.Metric) error {
 }
 
 func (c *Collector) collectLeases(ch chan<- prometheus.Metric) error {
-	if !c.cfg.ExposeLeases {
-		return nil
-	}
-
 	activeLeases, err := readLeaseFile(c.cfg.LeasesPath)
 	if err != nil {
 		return err
