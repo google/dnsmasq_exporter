@@ -1,5 +1,5 @@
 # build stage
-FROM golang:1.25.6-trixie AS build-env
+FROM golang:1.27.4-trixie AS build-env
 ADD . /src
 ENV CGO_ENABLED=0
 WORKDIR /src
